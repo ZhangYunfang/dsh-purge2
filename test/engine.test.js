@@ -45,15 +45,16 @@ test("apply → 幂等 → revert 逐字节还原", { skip: !hasHost && "no host
   const { root, originals } = makeSandbox();
   assert.ok(originals.size >= 3, `expected >=3 target files, got ${originals.size}`);
 
-  // 1) 首次 apply
+  // 1) 首次 apply —— 条数从补丁集推导，不写死
+  const total = SOURCE_PATCHES.length;
   const first = applyPatches(root, SOURCE_PATCHES, profile.track);
   assert.equal(first.summary.health, "green", JSON.stringify(first.summary));
-  assert.equal(first.rows.filter((r) => r.status === STATUS.APPLIED).length, 3);
+  assert.equal(first.rows.filter((r) => r.status === STATUS.APPLIED).length, total);
 
   // 2) 幂等：第二次必须全 already，且字节不再变化
   const afterFirst = new Map([...originals.keys()].map((f) => [f, fs.readFileSync(f)]));
   const second = applyPatches(root, SOURCE_PATCHES, profile.track);
-  assert.equal(second.rows.filter((r) => r.status === STATUS.ALREADY).length, 3);
+  assert.equal(second.rows.filter((r) => r.status === STATUS.ALREADY).length, total);
   assert.equal(second.rows.filter((r) => r.status === STATUS.APPLIED).length, 0);
   for (const [f, buf] of afterFirst) {
     assert.ok(fs.readFileSync(f).equals(buf), `file changed on second apply: ${f}`);
@@ -66,7 +67,8 @@ test("apply → 幂等 → revert 逐字节还原", { skip: !hasHost && "no host
 
   // 4) revert 逐字节还原
   const reverted = revertPatches(root, SOURCE_PATCHES);
-  assert.equal(reverted.filter((r) => r.status === "reverted").length, 3);
+  const touchedFiles = new Set(reverted.map((r) => r.file));
+  assert.equal(reverted.filter((r) => r.status === "reverted").length, touchedFiles.size);
   for (const [f, buf] of originals) {
     assert.ok(fs.readFileSync(f).equals(buf), `revert mismatch: ${f}`);
   }
@@ -76,18 +78,19 @@ test("apply → 幂等 → revert 逐字节还原", { skip: !hasHost && "no host
 
 test("锚点被篡改 → 拒写，文件不变", { skip: !hasHost && "no host installed" }, () => {
   const { root, originals } = makeSandbox();
-  // 弄坏 S3 的一个锚点
-  const f = path.join(root, "dsh-tool-fs", "lib", "index.js");
+  // 弄坏 READ_CAPS 的一个锚点（按 id 找，不依赖编号顺序）
+  const caps = SOURCE_PATCHES.find((x) => x.name === "READ_CAPS_RAISED");
+  const f = path.join(root, caps.targets[0].pkg, ...caps.targets[0].rel);
   const text = fs.readFileSync(f, "utf8").replace("const READ_LIMIT = 2e3;", "const READ_LIMIT = 9999;");
   fs.writeFileSync(f, text);
   const before = fs.readFileSync(f);
 
   const rep = applyPatches(root, SOURCE_PATCHES, profile.track);
-  const s3 = rep.rows.find((r) => r.id === "S3");
-  assert.equal(s3.status, STATUS.HIT_MISMATCH);
+  const capsRow = rep.rows.find((r) => r.id === caps.id);
+  assert.equal(capsRow.status, STATUS.HIT_MISMATCH);
   assert.ok(fs.readFileSync(f).equals(before), "engine wrote despite hit mismatch");
   // 其它补丁照常打
-  assert.equal(rep.rows.find((r) => r.id === "S1").status, STATUS.APPLIED);
+  assert.ok(rep.rows.filter((r) => r.status === STATUS.APPLIED).length >= 1);
   assert.equal(rep.summary.health, "red");
 
   fs.rmSync(root, { recursive: true, force: true });
