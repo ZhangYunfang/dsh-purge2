@@ -1,6 +1,6 @@
 {
   "name": "dsh-purge2",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "DSH 破甲（0.1.x 专用）：三通道（config / runtime / source patch）降低交互摩擦，每条改动能证明、能回退。",
   "type": "module",
   "main": "lib/index.js",
@@ -14,8 +14,11 @@
   "files": [
     "lib",
     "bin",
-    "cordis.patch.yml",
+    "scripts",
     "docs",
+    "assets",
+    "cordis.patch.yml",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE",
     "NOTICE"
@@ -23,8 +26,14 @@
   "scripts": {
     "probe": "node bin/dsh-purge2.js probe",
     "plan": "node bin/dsh-purge2.js plan",
+    "selfcheck": "node bin/dsh-purge2.js selfcheck",
+    "verify": "node bin/dsh-purge2.js verify",
+    "panel": "node bin/gen-panel.js",
+    "ui": "node bin/gen-panel.js && /opt/homebrew/bin/python3.12 $HOME/.agents/skills/ui-iron-law/scripts/verify_ui.py dist/panel.html",
     "test": "node --test test/*.test.js",
-    "smoke": "node test/mount.smoke.mjs"
+    "smoke": "node test/mount.smoke.mjs && node test/web.smoke.mjs",
+    "e2e": "./scripts/e2e.sh",
+    "check": "npm test && npm run smoke && npm run ui && npm run e2e"
   },
   "license": "Apache-2.0",
   "dsh": {
