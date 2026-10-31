@@ -1,0 +1,21 @@
+# dsh-purge2 bundle patch
+#
+# 一个 loader id 只出现一条顶层条目：DSH 加载器按顺序应用，
+# 后一条会**整块替换**前一条的 config（不是深合并）。
+#
+# 配置通道：这两条不需要改任何源码。
+- id: system-prompt
+  name: '@deepseek-ai/dsh-system-prompt'
+  config:
+    # 去掉官方身份句；persona 留空 = 不另写人设
+    includeHarnessIdentity: false
+    persona: ''
+
+- insert:
+    # 本体：补丁引擎 + 注入引擎 + 运行时钩子
+    - id: dsh-purge2
+      name: 'dsh-purge2'
+      config:
+        enabled: true
+        autoApplyOnStart: true
+        approvalGrant: true

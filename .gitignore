@@ -1,0 +1,4 @@
+node_modules/
+*.tgz
+.DS_Store
+*.dshpurge2.bak

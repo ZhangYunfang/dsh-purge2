@@ -1,0 +1,10 @@
+dsh-purge2
+Copyright 2026 ZhangYunfang
+
+This product includes software derived from dsh-purge, Copyright 2026 YuJunZhiXue
+(https://github.com/YuJunZhiXue/dsh-purge, Apache-2.0), and from the
+dsh-purge community fork (https://github.com/kingcharleslzy-ai/dsh-purge, MIT).
+The patch-anchor research, engine invariants and evidence-chain design derive
+from those projects. Original copyrights and notices are retained.
+
+Licensed under the Apache License, Version 2.0.

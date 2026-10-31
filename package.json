@@ -1,0 +1,24 @@
+{
+  "name": "dsh-purge2",
+  "version": "0.0.1",
+  "description": "DSH 破甲（0.1.x 专用）：三通道（config / runtime / source patch）降低交互摩擦，每条改动能证明、能回退。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "bin": { "dsh-purge2": "bin/dsh-purge2.js" },
+  "files": ["lib", "bin", "cordis.patch.yml", "docs", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "probe": "node bin/dsh-purge2.js probe",
+    "plan": "node bin/dsh-purge2.js plan",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "Apache-2.0",
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" }
+  },
+  "engines": { "node": ">=18" },
+  "dshTarget": "0.1.2-alpha.2"
+}
