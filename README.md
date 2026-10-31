@@ -36,11 +36,15 @@ node bin/dsh-purge2.js audit
 node bin/dsh-purge2.js revert     # 用 .bak 逐字节还原
 
 # 验证（全绿才发版）
-npm test        # 25 项单元测试
-npm run smoke   # 18 项真机断言（真实 cordis + 真实 WebServer）
-npm run ui      # 面板过 UI 铁律门禁
-npm run e2e     # 28 项端到端（沙箱 DSH_HOME 跑完整链路）
-npm run check   # 以上四个全跑
+npm test            # 25 项单元测试
+npm run smoke       # 18 项真机断言（真实 cordis + 真实 WebServer）
+npm run host-check  # 20 项进程内全链路（打补丁→注入→审批放行→策略纠正→三级证据）
+npm run ui          # 面板过 UI 铁律门禁 19 项
+npm run e2e         # 28 项端到端（沙箱 DSH_HOME 跑完整 CLI 链路）
+npm run check       # 以上五个全跑
+
+# 重启 dsh-web 之后，确认真实进程里已生效
+npm run live-check
 ```
 
 装完重启 DSH，面板在 `http://localhost:3080/purge2`。

@@ -43,6 +43,24 @@
 - `node:sqlite` 资产库 + 四级证据账本（`claimed` 不进成果）+ 成果报告
 - 6 个 `lab_*` 工具；不内置攻击载荷
 
+### 验收脚本（四层）
+
+| 脚本 | 验什么 | 需要重启 |
+| --- | --- | --- |
+| `npm test` | 25 项单元测试 | 否 |
+| `npm run smoke` | 18 项真机断言（真实 cordis + 真实 WebServer） | 否 |
+| `npm run host-check` | 20 项**进程内全链路**：打补丁→注入→审批放行→策略纠正→三级证据 | 否 |
+| `npm run e2e` | 28 项端到端：沙箱 DSH_HOME 跑完整 CLI 链路 | 否 |
+| `npm run live-check` | 真实运行实例是否已加载并生效 | **是** |
+
+`npm run check` = 前四个全跑。
+
+### 修复
+
+- `lib/index.js`：web 安装块曾被误插到 `getHandle()` 里导致 `ReferenceError: cfg is not defined`；
+  `npm test` 与 `mount.smoke` 都没覆盖到这条路径（它们不加载 true web 分支），
+  由新增的 `host-check` 首次跑通时发现——这也是把「进程内全链路」补进验收链的直接原因。
+
 ### 已知边界
 
 - **只支持 DSH 0.1.x**；0.2.x 的锚点不同（上游 85 条补丁里只有 30 条在 0.1.2 命中）

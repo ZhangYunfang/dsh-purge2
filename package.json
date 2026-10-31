@@ -21,7 +21,8 @@
     "CHANGELOG.md",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "scripts"
   ],
   "scripts": {
     "probe": "node bin/dsh-purge2.js probe",
@@ -33,7 +34,9 @@
     "test": "node --test test/*.test.js",
     "smoke": "node test/mount.smoke.mjs && node test/web.smoke.mjs",
     "e2e": "./scripts/e2e.sh",
-    "check": "npm test && npm run smoke && npm run ui && npm run e2e"
+    "check": "npm test && npm run smoke && npm run host-check && npm run ui && npm run e2e",
+    "host-check": "node scripts/host-check.mjs",
+    "live-check": "node scripts/live-check.mjs"
   },
   "license": "Apache-2.0",
   "dsh": {
