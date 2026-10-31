@@ -20,12 +20,27 @@ DSH 0.1.x，而本机跑的是 **0.1.2-alpha.2**。这个仓库把那三份的�
 ## 快速开始
 
 ```bash
-node bin/dsh-purge2.js probe    # 只读：宿主指纹 + 锚点命中数
-node bin/dsh-purge2.js plan     # 只读：将改哪些文件、命中数、字符增量
-node bin/dsh-purge2.js apply    # 写：先建 .dshpurge2.bak，命中数不符一律拒写
-node bin/dsh-purge2.js revert   # 用 .bak 逐字节还原
-npm test                        # 3 项验收：幂等 / 拒写 / plan 只读
+node bin/dsh-purge2.js probe     # 只读：宿主指纹 + 锚点命中数
+node bin/dsh-purge2.js plan      # 只读：将改哪些文件、命中数、字符增量
+node bin/dsh-purge2.js apply     # 写：先建 .dshpurge2.bak，命中数不符一律拒写
+node bin/dsh-purge2.js verify    # 只读：三级证据链 E1/E2/E3
+node bin/dsh-purge2.js evidence  # 只读：最近证据记录（JSONL）
+node bin/dsh-purge2.js revert    # 用 .bak 逐字节还原
+npm test                         # 10 项验收
 ```
+
+## 三级证据链（相对三上游的核心增量）
+
+社区版的自检只证明「补丁写进去了」；本仓库把证据分三级，**未知一律记 `null`，不折叠成 false**：
+
+| 级别 | 问的问题 | 判据 |
+| --- | --- | --- |
+| **E1 静态** | 文件真的是目标字节吗？ | 每个目标文件 sha256 + marker 命中 |
+| **E2 运行时** | 注入真的进了这一轮吗？ | assemble 观测：段数 / 注入字节 / sha / 段位 / 是否被熔断跳过 |
+| **E3 行为** | 钩子真的被调用了吗？ | 审批放行次数与最后工具名 |
+
+健康度三态：🟡 未应用或未知 / 🔴 打了一半（不一致）/ 🟢 补丁到位且注入在。
+注意 **E2/E3 只有在 DSH 进程内才有值**，CLI 是独立进程，显示 `?` 属于正常。
 
 ## 关键结论（先读这个）
 

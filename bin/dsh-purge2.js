@@ -11,6 +11,10 @@ import { buildHostProfile, probeAnchors } from "../lib/host-probe.js";
 import { applyPatches, planPatches, revertPatches, summarize, STATUS } from "../lib/patch-engine.js";
 import { SOURCE_PATCHES } from "../lib/patches/legacy-0.1.js";
 import { CONFIG_SEAMS, APPROVAL_POLICY_NOTES } from "../lib/config-seams.js";
+import { verifyAll, read as readEvidence } from "../lib/evidence.js";
+import { hasMarker } from "../lib/patch-engine.js";
+import { injectionStats } from "../lib/inject-engine.js";
+import { approvalGrantStats } from "../lib/runtime/approval-grant.js";
 
 const argv = process.argv.slice(2);
 const op = argv[0] || "status";
@@ -110,6 +114,42 @@ try {
     process.exit(report.summary.health === "red" ? 1 : 0);
   }
 
+  if (op === "verify" || op === "evidence") {
+    if (op === "evidence") {
+      const rows = readEvidence(profile.dshHome, Number(argv[1]) || 30);
+      if (json) out(rows);
+      else {
+        console.log(`证据 ${rows.length} 条  ·  ${path.join(profile.dshHome, "purge2", "evidence")}`);
+        for (const r of rows) console.log(`  ${r.at}  ${String(r.level).padEnd(3)} ${JSON.stringify({ ...r, at: undefined, level: undefined })}`);
+      }
+      process.exit(0);
+    }
+    const v = verifyAll({
+      aiBase: profile.aiBase,
+      patchSet: SOURCE_PATCHES,
+      hasMarker,
+      injectionStats,
+      approvalGrantStats,
+    });
+    if (json) out(v);
+    else {
+      console.log(`三级证据链  ·  健康度 ${v.health}`);
+      console.log("");
+      console.log("E1 静态（文件字节 + marker）");
+      for (const r of v.e1) {
+        const icon = r.markerFound === true ? "✓" : r.markerFound === false ? "·" : "?";
+        console.log(`  ${icon} ${String(r.id).padEnd(3)} ${r.file.padEnd(42)} sha ${r.sha || "-"}`);
+      }
+      console.log("");
+      console.log(`E2 运行时注入  ${v.e2.ok === true ? "✓ 已观察到" : v.e2.ok === null ? "? 尚未 assemble（进程内未挂载时正常）" : "✗ " + v.e2.reason}`);
+      if (v.e2.ok) console.log(`     assembles=${v.e2.assembles} 注入 ${v.e2.injectedBytes}B sha=${v.e2.injectedSha} 段位=${v.e2.anchorIndex} 耗时=${v.e2.costMs}ms`);
+      console.log(`E3 行为钩子    ${v.e3.ok === true ? `✓ 已放行 ${v.e3.approvalGranted} 次` : "? 未观察到审批请求（≠未生效）"}`);
+      console.log("");
+      console.log("注：CLI 是独立进程，E2/E3 只在 DSH 进程内才有观测值；此处显示 ? 是正常的。");
+    }
+    process.exit(v.health === "red" ? 1 : 0);
+  }
+
   if (op === "revert") {
     const rows = revertPatches(profile.aiBase, SOURCE_PATCHES);
     if (json) out(rows);
@@ -121,7 +161,7 @@ try {
     process.exit(0);
   }
 
-  console.error(`用法：dsh-purge2 <probe|plan|status|apply|revert> [--json] [--enable-opt-in]`);
+  console.error(`用法：dsh-purge2 <probe|plan|status|apply|revert|verify|evidence> [--json] [--enable-opt-in]`);
   process.exit(2);
 } catch (e) {
   console.error(`[dsh-purge2] ${e?.stack || e}`);

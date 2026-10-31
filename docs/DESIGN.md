@@ -18,9 +18,9 @@
 ```
 L0 host-probe      宿主指纹 + 锚点探针表（只读，plan 的数据来源）
 L1 patch-engine    变体链 + 六条不变式 + 三态执行（probe/plan/apply）
-L2 inject-engine   注入（section / assemble / 尾部锚点）  ← 下一步
+L2 inject-engine   注入（section / assemble / 尾部锚点 + 三个熔断）  ✅ 已实现
 L3 capacity        三通道分级：config > runtime > source
-L4 evidence        三级证据链 E1 静态 / E2 运行时 / E3 行为  ← 下一步
+L4 evidence        三级证据链 E1 静态 / E2 运行时 / E3 行为  ✅ 已实现
 L5 ux              CLI（已可跑）+ 面板（待做）
 L6 data            $DSH_HOME/purge2/（不写 profile YAML）
 ```
@@ -58,3 +58,18 @@ L6 data            $DSH_HOME/purge2/（不写 profile YAML）
 | S3 READ_CAPS_RAISED | #22 | source |
 | C1 HARNESS_IDENTITY_STRIP | #25 / #4 | **config**（不用补丁） |
 | R1 approval grant | #9（上游用源码补丁） | **runtime**（更安全） |
+
+## 注入引擎的三条实现约束
+
+1. **段位从受控表推导**：`section.order = getSectionOrder("DEPLOYMENT_PERSONA") + 1`，
+   不写魔数（如 `order: 150`）。
+2. **尾部锚点必须物理 push 到数组末尾**：水落按数组顺序渲染，`order` 不参与排序；
+   同名段先滤再 push，保证不出现两份。
+3. **三个熔断缺一不可**：内容缓存（mtime + sha）、风暴熔断（10s/120 次）、慢调用熔断（1.5s → 30s 冷却）。
+   上游为此挂死过 desktop host（每轮重算 23KB）。
+
+## 证据链的可信性规则
+
+- 「读不到」记 `null`，不记 `false`——未知 ≠ 没生效
+- 「一条都没打」是 🟡 未应用，**不是** 🔴；红只留给「打了一半」
+- E3 的 `approvalGranted = 0` 不等于未生效（可能本轮无需审批）
