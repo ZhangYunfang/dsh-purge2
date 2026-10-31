@@ -15,6 +15,10 @@ import { verifyAll, read as readEvidence } from "../lib/evidence.js";
 import { hasMarker } from "../lib/patch-engine.js";
 import { injectionStats } from "../lib/inject-engine.js";
 import { approvalGrantStats } from "../lib/runtime/approval-grant.js";
+import { policyKeeperStats } from "../lib/runtime/policy-keeper.js";
+import { rollupLayers, formatSelfcheck } from "../lib/selfcheck.js";
+import { logAudit, readAudit } from "../lib/audit.js";
+import { createBackup, listBackups, restoreBackup, pruneBackups, backupsUsage } from "../lib/backup.js";
 
 const argv = process.argv.slice(2);
 const op = argv[0] || "status";
@@ -100,12 +104,22 @@ try {
   }
 
   if (op === "apply") {
+    const snap = createBackup(profile.dshHome, profile.aiBase, SOURCE_PATCHES, {
+      dshVersion: profile.dshVersion,
+      track: profile.track,
+      reason: "before-apply",
+    });
     const report = applyPatches(profile.aiBase, SOURCE_PATCHES, profile.track, {
       enableOptIn: argv.includes("--enable-opt-in"),
     });
-    if (json) out(report);
+    logAudit(profile.dshHome, {
+      action: "apply",
+      result: report.summary.health,
+      detail: { by: report.summary.by, backup: snap?.id || null },
+    });
+    if (json) out({ ...report, backup: snap?.id || null });
     else {
-      console.log(`apply 完成  ·  健康度 ${report.summary.health}`);
+      console.log(`apply 完成  ·  健康度 ${report.summary.health}${snap?.id ? `  ·  快照 ${snap.id}` : ""}`);
       if (report.restored.length) console.log(`  自愈还原 ${report.restored.length} 个文件`);
       report.rows.forEach((r) => console.log(fmtRow(r)));
       console.log("");
@@ -150,8 +164,76 @@ try {
     process.exit(v.health === "red" ? 1 : 0);
   }
 
+  if (op === "selfcheck") {
+    const rows = planPatches(profile.aiBase, SOURCE_PATCHES, profile.track);
+    const result = rollupLayers({
+      rows,
+      evidence: { e2: { ok: null }, e3: { ok: null } },
+    });
+    if (json) out(result);
+    else console.log(formatSelfcheck(result, SOURCE_PATCHES));
+    process.exit(result.state === "red" ? 1 : 0);
+  }
+
+  if (op === "audit") {
+    const rows = readAudit(profile.dshHome, Number(argv[1]) || 30);
+    if (json) out(rows);
+    else {
+      console.log(`审计 ${rows.length} 条`);
+      for (const r of rows) console.log(`  ${r.at}  ${r.action.padEnd(10)} ${r.result.padEnd(8)} ${JSON.stringify(r.detail)}`);
+    }
+    process.exit(0);
+  }
+
+  if (op === "backup") {
+    const sub = argv[1] || "list";
+    let result;
+    if (sub === "create") {
+      result = createBackup(profile.dshHome, profile.aiBase, SOURCE_PATCHES, {
+        dshVersion: profile.dshVersion,
+        track: profile.track,
+        reason: "cli",
+      });
+      logAudit(profile.dshHome, { action: "backup", detail: { id: result?.id } });
+    } else if (sub === "prune") {
+      result = pruneBackups(profile.dshHome, Number(argv[2]) || 10);
+    } else if (sub === "usage") {
+      result = backupsUsage(profile.dshHome);
+    } else {
+      result = listBackups(profile.dshHome);
+    }
+    if (json) out(result);
+    else if (Array.isArray(result)) {
+      console.log(`快照 ${result.length} 份`);
+      for (const b of result) console.log(`  ${b.id}  ${b.at}  ${b.reason}  ${b.files} 文件 ${Math.round((b.bytes || 0) / 1024)}KB`);
+    } else console.log(JSON.stringify(result, null, 2));
+    process.exit(0);
+  }
+
+  if (op === "rollback") {
+    const id = argv[1];
+    if (!id) {
+      console.error("用法：dsh-purge2 rollback <快照ID>   （先 dsh-purge2 backup list 看有哪些）");
+      process.exit(2);
+    }
+    const res = restoreBackup(profile.dshHome, profile.aiBase, id);
+    logAudit(profile.dshHome, { action: "rollback", detail: { id, ...res } });
+    if (json) out(res);
+    else {
+      console.log(`回滚 ${res.verified ? "已校验" : "校验失败"}  ·  还原 ${res.restored}  跳过 ${res.skipped}`);
+      for (const e of res.errors) console.log(`  ✗ ${e}`);
+      if (res.restored) console.log("\n重启 DSH 生效。");
+    }
+    process.exit(res.errors.length ? 1 : 0);
+  }
+
   if (op === "revert") {
     const rows = revertPatches(profile.aiBase, SOURCE_PATCHES);
+    logAudit(profile.dshHome, {
+      action: "revert",
+      result: rows.some((r) => r.status === "error") ? "partial" : "ok",
+      detail: { reverted: rows.filter((r) => r.status === "reverted").length },
+    });
     if (json) out(rows);
     else {
       for (const r of rows) console.log(`  ${r.status === "reverted" ? "✓" : "-"} ${r.file}  ${r.status}`);
@@ -161,7 +243,7 @@ try {
     process.exit(0);
   }
 
-  console.error(`用法：dsh-purge2 <probe|plan|status|apply|revert|verify|evidence> [--json] [--enable-opt-in]`);
+  console.error(`用法：dsh-purge2 <probe|plan|status|apply|revert|verify|evidence|selfcheck|audit|backup|rollback> [--json] [--enable-opt-in]`);
   process.exit(2);
 } catch (e) {
   console.error(`[dsh-purge2] ${e?.stack || e}`);
