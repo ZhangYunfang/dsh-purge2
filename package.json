@@ -8,17 +8,32 @@
     ".": "./lib/index.js",
     "./package.json": "./package.json"
   },
-  "bin": { "dsh-purge2": "bin/dsh-purge2.js" },
-  "files": ["lib", "bin", "cordis.patch.yml", "docs", "README.md", "LICENSE", "NOTICE"],
+  "bin": {
+    "dsh-purge2": "bin/dsh-purge2.js"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "cordis.patch.yml",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
   "scripts": {
     "probe": "node bin/dsh-purge2.js probe",
     "plan": "node bin/dsh-purge2.js plan",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "smoke": "node test/mount.smoke.mjs"
   },
   "license": "Apache-2.0",
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" }
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dshTarget": "0.1.2-alpha.2"
 }

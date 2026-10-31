@@ -109,3 +109,53 @@ loader id（bundle 层声明要用）：
 
 0.1.2 的 `lib/*.js` 用 **tab** 缩进。写 pattern 时若用空格，一条都匹配不上。
 本仓库所有多行 pattern 一律用 `\t` 拼接，且 `plan` 会打印每条的实际字符增量供肉眼复核。
+
+---
+
+## 6. 致命坑（实现期实测）：往 cordis 的 `ctx` 上写未知属性 = 整个插件被静默回收
+
+现象：`ctx.plugin(...)` 挂载成功、`apply()` 里的 `console.log` 也确实打印了，
+但**所有 effect 全部失效**——注入的 section 不在 assemble 结果里，事件钩子也不触发。没有任何报错。
+
+根因：cordis 4.0.2 的 `ctx` 是 **Proxy**（`lib/index.js` 的 `Context` 类）。给 ctx 写一个
+它不认识的属性（当时写的是 `ctx.purge2 = {...}` 用于对外暴露句柄）会让 Proxy 的 set 抛错；
+`apply()` 因此抛出 → fiber 判定插件失败 → **回首掏把所有已注册的 effect dispose 掉**。
+而 cordis 把这个错误吞进 `internal/error`，不打日志。
+
+两个必须遵守的写法：
+
+```js
+// ❌ 会静默炸掉整个插件
+ctx.purge2 = { plan, apply };
+
+// ✅ 模块级句柄
+let handle = null;
+export function getHandle() { return handle; }
+```
+
+另外：`apply()` 整体要包 try/catch。局部 try/catch 救不了——抛出点在外面一样会回收 fiber。
+
+**判据**：挂载后用真实 `systemPrompt.assemble({})` 看 sections 里有没有你的段。
+`test/mount.smoke.mjs` 就是这条判据的可执行版本（7 项断言全绿）。
+
+## 7. 真实挂载的最小可行姿势
+
+```js
+const { Context } = await import('@deepseek-ai/cordis');
+const ctx = new Context();
+const sp = await import('@deepseek-ai/dsh-system-prompt');
+ctx.plugin(sp.default, { includeHarnessIdentity: true, persona: '' });
+await new Promise(r => setTimeout(r, 50));           // 让 fiber 落地
+
+const svc = ctx.get('systemPrompt');                  // ctx.systemPrompt 也可以，但 get() 更稳
+console.log(svc.getSectionOrder('DEPLOYMENT_PERSONA')); // → 0
+
+ctx.plugin({ name, inject, apply }, config);          // ← 传「带 inject 的对象」，别只传函数
+await new Promise(r => setTimeout(r, 80));
+const asm = await svc.assemble({});
+// asm.sections → [harness:identity, deployment:persona, purge2:operator, purge2:anchor]
+```
+
+关键两点：
+1. **只传函数不行**：cordis 从 `plugin.inject` 读依赖，裸函数没有 inject，服务还没就绪就跑了。
+2. 段位用 `getSectionOrder('DEPLOYMENT_PERSONA') + 1`（=1），落在 persona 之后、PLAN_POLICY(500) 之前。
