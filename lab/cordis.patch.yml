@@ -1,0 +1,9 @@
+# dsh-purge2-lab bundle patch —— 独立可选层
+#
+# 安装：dsh plugin --profile web add link:<本目录绝对路径>
+# 卸载：dsh plugin --profile web remove dsh-purge2-lab
+# 与其他插件互不影响：只 insert 自己一条 loader 条目。
+- insert:
+    - id: dsh-purge2-lab
+      name: 'dsh-purge2-lab'
+      config: {}

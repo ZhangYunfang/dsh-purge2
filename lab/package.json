@@ -1,0 +1,14 @@
+{
+  "name": "dsh-purge2-lab",
+  "version": "0.1.0",
+  "description": "dsh-purge2 演练台（可选层）：授权演练的资产测绘 + 四级证据账本 + 成果报告。默认不装，不随包分发攻击载荷。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": { ".": "./lib/index.js", "./package.json": "./package.json" },
+  "files": ["lib", "skills", "docs", "cordis.patch.yml", "README.md"],
+  "license": "Apache-2.0",
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "engines": { "node": ">=22" },
+  "dshTarget": "0.1.2-alpha.2",
+  "scripts": { "test": "node --test test/*.test.js" }
+}
